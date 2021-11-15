@@ -1,0 +1,325 @@
+---
+title: "Projet Aanlyse de Données"
+author: "Med.Amairi"
+date: "17/06/2020"
+output:
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+---
+
+# Importer et explorer mon BD :
+```{r, echo=TRUE}
+
+library(FactoMineR)
+library("readxl")
+df <- read_excel("AD.xlsx")
+df=df[,2:41]
+dim(df)
+head(df)
+tail(df)
+str(df)
+summary(df)
+```
+## 1. Calul de la matrice centrée reduite :
+
+## Centrer et réduire la matrice $X$:
+```{r,echo=TRUE}
+
+X=as.matrix(df[,17:27])
+g=colMeans(X)
+Y=sweep(x = X,2,g,FUN = '-')
+round(colMeans(X),3)
+
+```
+## Calcul des écarts-types pour réduire les variables:
+```{r ,echo=TRUE}
+
+n=nrow(X)
+p=ncol(X)
+et=apply(Y,2,function(x) sqrt(sum(x^2)/n))
+et
+```
+## Calcul de la matrice des données  centrées réduites $Z$. On vérifie que les variables de cette matrice sont bien de variance égale à 1:
+```{r,echo=TRUE}
+
+Z=sweep(x = Y,2,et,FUN = '/')
+colSums(Z^2)/n
+
+```
+## 2. Calcul de la matrice des corrélations:
+
+## Calcul de la matrice des corrélations $R=Z'DZ$, ses valeurs propres et ses vecteurs propres.
+```{r,echo=TRUE}
+
+M=diag(rep(1,p)) 
+D=(1/n)*diag(rep(1,n))
+R=t(Z)%*%D%*%Z
+vp=eigen(R %*%M)
+lambda=vp$values
+lambda
+U=vp$vectors
+U
+```
+
+## Vérifions que les vecteurs propres (i.e. les colonnes de $U$) sont bien orthornormés:
+```{r,echo=TRUE}
+
+round(t(U)%*%U,3)
+```
+## 3.Les composantes principales:
+
+## Calculons la matrice $Psi$ des composantes principales qui est donnée par $Psi=Zu$. On verifiera que la variance de chaque composante est égale à la valeur propore correspondante:
+
+```{r,echo=TRUE}
+
+Psi=Z%*%U
+Psi
+round(t(Psi)%*%D%*%Psi,3)
+```
+## 4.Les coordonnées des variables sur les axes :
+
+## Calculons la matrice $Eta$ des coordonnées des variables sur les axes principaux par $Eta_\alpha = \sqrt{(\lambda_\alpha)} u_\alpha$:
+```{r,echo=TRUE}
+Eta<-sweep(U,2,sqrt(lambda),FUN='*')
+Eta
+```
+# ACP normée avec le package FactoMineR et interprétation de l'ACP
+
+## 1. Intérêt de l’ACP :
+
+L’intérêt de cette ACP est double. En se basant sur les corrélations qui peuvent exister entre  les variables, la méthode va les regrouper pour proposer un petit nombre de nouvelles variables et qui décrivent les habitudes de tunisiens lorsques ils vont au café. 
+
+## 2. Pertinence de l'ACP:
+
+
+```{r ,echo=TRUE,fig.width=10,fig.height=10}
+
+library(corrplot)
+X=as.matrix(df[,c(17:27)])
+colnames(X) <- c("Fumer la chicha","Envie de boire des boissons","Jouer aux cartes ","Regarder un match de foot","Etudier et reviser ","Travailler ","Discuter avec des amies ","Lire un journal ou une revue","Aller sur Internet","Organiser une fête d’amis","Ne rien à faire ")
+M<-cor(X)
+library(RColorBrewer)
+corrplot(M, type="upper",tl.cex = 0.7,tl.col = 'black', order="hclust", 
+         col=brewer.pal(n=8, name="RdBu"))
+
+```
+
+Le corrgram donné ci-dessus permet d’étudier les corrélations entre les variables quantitatives . 
+
+Il est clair qu’il existe des corrélations importantes entre des groupes de variables ce qui suggère la pertinence de cette ACP .
+Par exemple on remarque une forte corrélation entre les deux variables ("etudier et reviser","travailler","aller sur internet" et "Lire un journal ou une revue").
+
+Par contre il n'y a pas des corrélations entre quelques variables en effet il n'existe pas une corrélation entre les gens qui vont au café pour travailler ou etudier et les gens qui vont au café pour regarder un match de foot .
+
+```{r,echo=TRUE}
+library(factoextra)
+df1=df[,17:27]
+colnames(df1) <- c("Fumer la chicha","Envie de boire des boissons","Jouer aux cartes ","Regarder un match de foot","Etudier et reviser ","Travailler ","Discuter avec des amies ","Lire un journal ou une revue","Aller sur Internet","Organiser une fête d’amis","Ne rien à faire ")
+res.pca=PCA(df1,scale.unit = TRUE,ncp =5,graph = T)
+
+```
+
+## 3. Choix du nombre d’axes à retenir:
+
+
+```{r,echo=TRUE}
+head(res.pca$eig)
+```
+
+```{r,echo=TRUE}
+fviz_screeplot(res.pca, ncp=11)
+```
+
+**a.Critère de kaiser :**
+on remarque qu’il y a 4 axes dont les valeurs propres sont supérieures à 1 donc on retient 4 axes d’après ce critère.
+
+**b.Critère du taux d’inertie cumulée :**
+On remarque que le taux d’inertie cumulé des 3 premiers axes est de 54.7% qui est un taux important compte tenu du fait que nous avons 11 variables : on va donc, d’après ce critère, retenir les 2 premiers axes.
+
+**c.Critère du coude :**
+On remarque que le coude se trouve au niveau du troisiéme axe , d’après ce critère, on devrait retenir les 3 premiers axes.
+
+## conclusion : 
+En faisant une sorte de vote des 3 critères on devrait retenir les 3 premiers axes.
+
+## 4. Interprétation de la carte des variables:
+
+```{r,echo=TRUE}
+round( res.pca$var$coord ,digits = 3)
+```
+```{r,echo=TRUE}
+round(res.pca$var$cos2,digits = 3)
+```
+
+### Axe 1 : 
+Cette axe est fortement corrélé aux variables ("Etudier et reviser ","Travailler ","Lire un journal ou une revue","Aller sur Internet").En effet cet axe représente bien les individus qui vont au café pour des raisons **educatives** et **professionnelles** .
+
+### Axe 2 :
+Cette axe est fortement corrélé aux variables ("Fumer la chicha","Jouer aux cartes ","Regarder un match de foot"),on peut dire que cette axe est trés proche **des habitudes quotidiennes des citoyens tunisiens dans les cafés**.
+
+## Axe 3 :
+Cette axe est corrélé aux variables ("Envie de boire des boissons","Discuter avec des amies ","Organiser une fête d’amis"),
+cette axe en effet met  en vidence que le café est un **espace social** pour **relaxer** et  **amuser avec les amies**.
+
+```{r,echo=TRUE}
+fviz_pca_var(res.pca)
+```
+```{r,echo=TRUE}
+fviz_pca_var(res.pca, col.var="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.6) + 
+  theme_minimal()
+```
+
+## 5. Interprétation de la carte des individus:
+```{r,echo=TRUE}
+fviz_pca_ind(res.pca,geom = "point",col.ind.sup = 'gray')
+```
+
+```{r echo=TRUE}
+fviz_pca_ind(res.pca,geom = "text",col.ind.sup = 'gray')
+```
+
+```{r ,echo=TRUE}
+fviz_pca_ind(res.pca,geom = "text",col.ind="cos2")+
+scale_color_gradient2(low="blue", mid="white", 
+                      high="red", midpoint=0.5)
+```
+
+
+# Analyse Factorielle des Correspondances
+
+Dans la partie AFC je choisis de travailler sur le variable "fréquentation au café par semaine" avec les modalités suivantes : **Chaque jour,Le Weekend,Les jours fériés,Quelques jours par semaine** et le variable "type de café" avec les modalités suivantes :**Salon de thé,Café,café mixte,Café bar,Café restaurant**.
+
+## 1. Introduction de tableau:
+
+```{r ,echo=TRUE}
+library("factoextra")
+library(FactoMineR)
+df2<-df[,6]
+colnames(df2)<-c("fréquentation ")
+head(df2)
+df3<-df[,11]
+colnames(df3)<-c("typecafé")
+head(df3)
+don<-cbind.data.frame(df2,df3)
+don
+
+
+
+```
+## 2.Tableau croisée des effectifs et des fréquences:
+```{r,echo=TRUE}
+tab<-table(don$fréquentation,don$typecafé)
+tab
+colnames(tab)<-c("café","cafébar","cafémx","caféres","salonthé")
+addmargins(tab)
+
+```
+
+```{r}
+prop.table(tab)
+addmargins(prop.table(tab))
+
+
+```
+## 3.Tableaux des profils-lignes et profils-colonnes:
+```{r}
+library(questionr)
+lprop(tab)
+```
+Parmi ceux qui vont au café chaque jour 69.2% choisissent d'aller aux cafés simples et 23% choisissent les salons de thé et les cafés mixtes .
+De plus parmi qui vont au café les jours feriers par exemple 21.4% choisissent les cafés simples et 64.3% vont aux salon de thé et cafés mixtes .
+
+```{r}
+cprop(tab)
+```
+Ainsi parmi qui préfernt les salons de thé 40% vont le weekend et 8% chaque jour ,et parmi qui préferent les cafés mixtes 53.3% vont quelques jours par semaine 33.3% les jours fériés et juste 6.6 % chaque jour .
+
+La différence qui existe entre les profils colonnes et plus particulièrement entre ce profil et le profil moyen indique que cette AFC ne peut être que pertinente, chose qui sera confirmée par le test du chi-2 .
+
+## 4.Test du chi-2:
+```{r}
+test<-chisq.test(tab)
+test
+```
+- La valeur du χ² est de 21.152.
+
+- Le degré de liberté du χ² est de  (p−1)∗(q−1)=(6−1)∗(4−1)=12.
+
+- La p-value étant de faible valeur (elle est de l’ordre de 10 puissance -2), on peut donc rejeter l’hypothèse d’indépendance : l’AFC est donc plus ou moins pertinente .
+
+## 5.Exécution de l'AFC :
+
+```{r,echo=TRUE}
+res.ca<-CA(tab,graph=F)
+summary(res.ca)
+
+
+```
+## 6. Choix du nombre d'axes a retenir :
+
+```{r}
+eig.val <- res.ca$eig
+round(res.ca$eig,3)
+```
+```{r}
+barplot(eig.val[, 2], 
+        names.arg = 1:nrow(eig.val), 
+        main = "Variances Explained by Dimensions (%)",
+        xlab = "Principal Dimensions",
+        ylab = "Percentage of variances",
+        col ="steelblue")
+
+lines(x = 1:nrow(eig.val), eig.val[, 2], 
+      type = "b", pch = 19, col = "red")
+```
+**Le taux d’inertie cumulé du premier plan étant de 91.949%, il est clair que l’on doit se contenter des 2 premiers axes.**
+
+## 6. Représentation et interprétation de la carte des profils-colonnes:
+```{r}
+round(cbind(res.ca$col$coord[,1:2],res.ca$col$contrib[,1:2], res.ca$col$cos2[,1:2]),2)
+```
+```{r}
+plot(res.ca, invisible="row")
+```
+
+```{r}
+fviz_ca_col(res.ca, col.col = "contrib")+
+ scale_color_gradient2(low = "white", mid = "blue",
+           high = "red", midpoint = 25) +
+ theme_minimal()
+```
+
+```{r}
+fviz_ca_col(res.ca, col.col="cos2")
+```
+
+- Le premier axe oppose cafémixte (contribution = 49.22%) à café (contribution = 27.03% ) ce qui explique que le frequentation au café mixte au cours de semaines ne pas le meme pour les cafés populaires.
+ 
+- Le deuxième axe oppose les cafés restaurant (contribu = 60.05 % ) aux café et salon de thé (contri resp = 11.68% et 11.16% ) .
+ 
+## 7. Représentation et interprétation de la carte des profils-lignes :
+```{r}
+round(cbind(res.ca$row$coord[,1:2],res.ca$row$contrib[,1:2], res.ca$row$cos2[,1:2]),2)
+```
+```{r}
+plot(res.ca, invisible="col")
+```
+
+```{r}
+fviz_ca_row(res.ca, col.row = "contrib")+
+ scale_color_gradient2(low = "white", mid = "blue",
+           high = "red", midpoint = 25) +
+ theme_minimal()
+```
+
+```{r}
+fviz_ca_row(res.ca, col.row = "cos2")
+```
+
+- Le premier axe oppose les modalités chaque jour a le weekend et quelques jour par semaine .
+
+- Le deuxième axe oppose le modalité le weekend et le modalité les jours feriés . 
